@@ -128,5 +128,41 @@ class TemporalPC(nn.Module):
         loss = self.hidden_loss + self.obs_loss
         loss.backward()
 
+
+class myRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, nonlin='tanh'):
+        """Simple implementation of a recurrent neural network
+
+        It slightly differs from the mainstream RNN implementation in that
+        the weights are applied after nonlinearities so we may use tanh for output
+        outside of the range (-1,1)
+        """
+        super(myRNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.Win = nn.Linear(input_size, hidden_size, bias=False)
+        self.Wr = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.Wout = nn.Linear(hidden_size, output_size, bias=False)
+
+        if nonlin == 'linear':
+            self.nonlin = Linear()
+        elif nonlin == 'tanh':
+            self.nonlin = Tanh()
+        else:
+            raise ValueError("no such nonlinearity!")
+        
+    def forward(self, x, h):
+        """We now use the notation for RNNs
+        
+        x: input at the current step
+        h: hidden state
+        """
+        hidden = self.Win(self.nonlin(x)) + self.Wr(self.nonlin(h))
+        output = self.Wout(self.nonlin(hidden))
+
+        return hidden, output
+    
+    def init_hidden(self, bsz):
+        return nn.init.kaiming_uniform_(torch.empty(bsz, self.hidden_size))
+
                 
 
