@@ -31,25 +31,7 @@ test_size = 1
 batch_size = 10
 
 # generate data
-steps = torch.linspace(0., 4 * torch.pi, seq_len).reshape((1, seq_len))
-y = amp * torch.sin(steps)
-print(y.shape)
-
-# generate training and validation data
-y_trains = torch.zeros((train_size, seq_len)).to(device)
-for s in range(train_size):
-    torch.manual_seed(s)
-    y_trains[s] = y + torch.randn_like(y) * noise
-
-y_vals = torch.zeros((val_size, seq_len)).to(device)
-for s in range(val_size):
-    torch.manual_seed(s + train_size)
-    y_vals[s] = y + torch.randn_like(y) * noise * 2
-
-y_tests = torch.zeros((test_size, seq_len)).to(device)
-for s in range(test_size):
-    torch.manual_seed(s + train_size + val_size)
-    y_tests[s] = y + torch.randn_like(y) * noise * 2
+steps, y, y_trains, y_vals, y_tests = get_sine(seq_len, amp, train_size, val_size, test_size, noise, device)
 
 # training with rnn
 model = myRNN(input_size, hidden_size, output_size).to(device)
