@@ -16,10 +16,10 @@ result_path = os.path.join('./results/', 'sine_wave')
 if not os.path.exists(result_path):
     os.makedirs(result_path)
 
-seq_len = 30
+seq_len = 20
 amp = 5.
-learn_iters = 100
-learn_lr = 5e-3
+learn_iters = 200
+learn_lr = 1e-3
 input_size = 1
 hidden_size = 36
 output_size = 1
@@ -80,36 +80,42 @@ for i in range(learn_iters):
             f"Val loss: {val_loss:.4f}"
         )
 
-# test set
-model.eval()
-with torch.no_grad():
-    h_test = model.init_hidden(test_size).to(device)
-    y_pred_test = []
-    for k in range(seq_len):
-        h_test, output = model(y_tests[:, k:k+1], h_test)
-        y_pred_test.append(output)
-    y_pred_test = torch.cat(y_pred_test, dim=1)
-    loss_test = criterion(y_pred_test, y.repeat(test_size, 1))
+
+def offline_inference(model, y_test):
+    assert y_test.shape[0] == 1
+    model.eval()
+    with torch.no_grad():
+        h = model.init_hidden(1).to(device)
+        y_pred = []
+        for k in range(seq_len):
+            h, output = model(y_test[:, k:k+1], h)
+            y_pred.append(output)
+        y_pred = torch.cat(y_pred, dim=1)
+    return y_pred
+
+# generate predictions for both training and test data
+y_pred_train = offline_inference(model, y_trains[0:1])
+y_pred_test = offline_inference(model, y_tests[0:1])
 
         
 plt.figure()
 plt.plot(train_losses, label='train')
 plt.plot(val_losses, label='val')
 plt.legend()
-plt.savefig(result_path + '/losses')
+plt.savefig(result_path + f'/losses_len{seq_len}')
 
 fig, ax = plt.subplots(2, 1, sharex=True)
 ax[0].plot(to_np(steps.squeeze()), to_np(y.squeeze()), label='true', c='k')
-ax[0].plot(to_np(steps.squeeze()), to_np(y_pred[-1:].squeeze()), label='train pred')
-ax[0].scatter(to_np(steps.squeeze()), to_np(y_trains[-1:].squeeze()), label='train data', facecolors='none', edgecolors='k')
+ax[0].plot(to_np(steps.squeeze()), to_np(y_pred_train.squeeze()), label='train pred')
+ax[0].scatter(to_np(steps.squeeze()), to_np(y_trains[0:1].squeeze()), label='train data', facecolors='none', edgecolors='k')
 ax[0].legend()
 ax[0].set_title('Train')
 ax[0].set_yticks(np.arange(-7.5, 10, 2.5))
 
 ax[1].plot(to_np(steps.squeeze()), to_np(y.squeeze()), label='true', c='k')
-ax[1].plot(to_np(steps.squeeze()), to_np(y_pred_test[-1:].squeeze()), label='test pred')
-ax[1].scatter(to_np(steps.squeeze()), to_np(y_tests[-1:].squeeze()), label='test data', facecolors='none', edgecolors='k')
+ax[1].plot(to_np(steps.squeeze()), to_np(y_pred_test.squeeze()), label='test pred')
+ax[1].scatter(to_np(steps.squeeze()), to_np(y_tests[0:1].squeeze()), label='test data', facecolors='none', edgecolors='k')
 ax[1].legend()
 ax[1].set_title('Test')
 ax[1].set_yticks(np.arange(-7.5, 10, 2.5))
-plt.savefig(result_path + '/example')
+plt.savefig(result_path + f'/example_len{seq_len}')

@@ -108,7 +108,7 @@ def offline_inference(model, y_test):
     return y_pred
 
 # generate predictions for both training and test data
-y_pred = offline_inference(model, y_trains[0:1])
+y_pred_train = offline_inference(model, y_trains[0:1])
 y_pred_test = offline_inference(model, y_tests[0:1])
         
 plt.figure()
@@ -119,14 +119,14 @@ plt.savefig(result_path + f'/losses_len{seq_len}')
 
 fig, ax = plt.subplots(2, 1, sharex=True)
 ax[0].plot(to_np(steps.squeeze()), to_np(y.squeeze()), label='true', c='k')
-ax[0].plot(to_np(steps.squeeze()), to_np(y_pred[-1:].squeeze()), label='train pred')
-ax[0].scatter(to_np(steps.squeeze()), to_np(y_trains[-1:].squeeze()), label='train data', facecolors='none', edgecolors='k')
+ax[0].plot(to_np(steps.squeeze()), to_np(y_pred_train.squeeze()), label='train pred')
+ax[0].scatter(to_np(steps.squeeze()), to_np(y_trains[0:1].squeeze()), label='train data', facecolors='none', edgecolors='k')
 ax[0].legend()
 ax[0].set_title('Train')
 
 ax[1].plot(to_np(steps.squeeze()), to_np(y.squeeze()), label='true', c='k')
-ax[1].plot(to_np(steps.squeeze()), to_np(y_pred_test[-1:].squeeze()), label='test pred')
-ax[1].scatter(to_np(steps.squeeze()), to_np(y_tests[-1:].squeeze()), label='test data', facecolors='none', edgecolors='k')
+ax[1].plot(to_np(steps.squeeze()), to_np(y_pred_test.squeeze()), label='test pred')
+ax[1].scatter(to_np(steps.squeeze()), to_np(y_tests[0:1].squeeze()), label='test data', facecolors='none', edgecolors='k')
 ax[1].legend()
 ax[1].set_title('Test')
 plt.savefig(result_path + f'/example_len{seq_len}')
