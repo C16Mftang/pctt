@@ -64,7 +64,8 @@ for i in range(learn_iters):
             model.inference(inf_iters, inf_lr, y[:, k:k+1], y_train[:, k:k+1], h)
             model.update_grads(y[:, k:k+1], y_train[:, k:k+1], h)
             optimizer.step()
-            h = model.z
+            h = model.z.clone()
+            # pred_x is made using the current hidden state after inference
             y_pred.append(model.pred_x)
         y_pred = torch.cat(y_pred, dim=1)
         loss = criterion(y_pred, y.repeat(batch_size, 1))

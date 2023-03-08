@@ -20,7 +20,7 @@ if not os.path.exists(result_path):
 seq_len = 10
 inf_iters = 100
 inf_lr = 1e-2
-learn_iters = 50
+learn_iters = 100
 learn_lr = 1e-4
 latent_size = 256
 control_size = 10
@@ -50,14 +50,14 @@ overall_losses, hidden_losses, obs_losses = [], [], []
 for learn_iter in range(learn_iters):
     model.train()
     seq_loss, hidden_loss, obs_loss = 0, 0, 0
-    prev_z = model.init_hidden().to(device)
+    prev_z = model.init_hidden(1).to(device)
     for k in range(seq_len):
         x, u = xs[k:k+1], us[k:k+1]
         optimizer.zero_grad()
         model.inference(inf_iters, inf_lr, x, u, prev_z, sparse_penal)
         model.update_grads(x, u, prev_z)
         optimizer.step()
-        prev_z = model.z
+        prev_z = model.z.clone()
 
         # add up the loss value at each time step
         hidden_loss += model.hidden_loss.item()
@@ -76,7 +76,7 @@ inf_iters = 500 # increase inf_iters
 test_xs = torch.zeros_like(xs).to(device)
 test_xs[:n_cued] = xs[:n_cued]
 init_test_xs = test_xs.detach().clone()
-prev_z = model.init_hidden().to(device)
+prev_z = model.init_hidden(1).to(device)
 
 hidden_states = []
 for k in range(seq_len):
