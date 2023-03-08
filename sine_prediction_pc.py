@@ -19,7 +19,7 @@ if not os.path.exists(result_path):
 seq_len = 200
 amp = 5.
 learn_iters = 100
-learn_lr = 5e-4
+learn_lr = 1e-4
 inf_iters = 20
 inf_iters_val = 20
 inf_lr = 1e-3
@@ -78,7 +78,7 @@ for i in range(learn_iters):
     y_pred_val = []
     for k in range(seq_len):
         model.inference(inf_iters_val, inf_lr, y[:, k:k+1], y_vals[:, k:k+1], h_val)
-        h_val = model.z
+        h_val = model.z.clone()
         y_pred_val.append(model.pred_x)
     y_pred_val = torch.cat(y_pred_val, dim=1)
     val_loss = criterion(y_pred_val, y.repeat(val_size, 1)).item()
@@ -103,7 +103,7 @@ def offline_inference(model, y_test):
     y_pred = []
     for k in range(seq_len):
         model.inference(inf_iters_val, inf_lr, y[:, k:k+1], y_test[:, k:k+1], h)
-        h = model.z
+        h = model.z.clone()
         y_pred.append(model.pred_x)
     y_pred = torch.cat(y_pred, dim=1)
     return y_pred
