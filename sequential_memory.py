@@ -48,6 +48,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learn_lr)
 # training
 overall_losses, hidden_losses, obs_losses = [], [], []
 for learn_iter in range(learn_iters):
+    model.train()
     seq_loss, hidden_loss, obs_loss = 0, 0, 0
     prev_z = model.init_hidden().to(device)
     for k in range(seq_len):
@@ -70,6 +71,7 @@ for learn_iter in range(learn_iters):
 
 # cued prediction/inference
 print('Cued inference begins')
+model.eval()
 inf_iters = 500 # increase inf_iters
 test_xs = torch.zeros_like(xs).to(device)
 test_xs[:n_cued] = xs[:n_cued]
