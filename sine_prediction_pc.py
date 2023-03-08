@@ -16,7 +16,7 @@ result_path = os.path.join('./results/', 'sine_wave_pc')
 if not os.path.exists(result_path):
     os.makedirs(result_path)
 
-seq_len = 30
+seq_len = 200
 amp = 5.
 learn_iters = 100
 learn_lr = 5e-4
@@ -115,7 +115,7 @@ plt.figure()
 plt.plot(train_losses, label='train')
 plt.plot(val_losses, label='val')
 plt.legend()
-plt.savefig(result_path + '/losses')
+plt.savefig(result_path + f'/losses_len{seq_len}')
 
 fig, ax = plt.subplots(2, 1, sharex=True)
 ax[0].plot(to_np(steps.squeeze()), to_np(y.squeeze()), label='true', c='k')
@@ -129,4 +129,4 @@ ax[1].plot(to_np(steps.squeeze()), to_np(y_pred_test[-1:].squeeze()), label='tes
 ax[1].scatter(to_np(steps.squeeze()), to_np(y_tests[-1:].squeeze()), label='test data', facecolors='none', edgecolors='k')
 ax[1].legend()
 ax[1].set_title('Test')
-plt.savefig(result_path + '/example')
+plt.savefig(result_path + f'/example_len{seq_len}')

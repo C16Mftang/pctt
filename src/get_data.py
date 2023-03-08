@@ -97,7 +97,7 @@ def get_rotating_mnist(datapath, seq_len, seed, device, angle=np.pi/5, digit=0, 
 def get_sine(seq_len, amp, train_size, val_size, test_size, noise, device):
     # generate data
     steps = torch.linspace(0., 4 * torch.pi, seq_len).reshape((1, seq_len))
-    y = amp * torch.sin(steps)
+    y = (amp * torch.sin(steps)).to(device)
 
     # generate training and validation data
     y_trains = torch.zeros((train_size, seq_len)).to(device)
