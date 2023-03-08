@@ -18,8 +18,8 @@ if not os.path.exists(result_path):
 
 seq_len = 100
 amp = 5.
-learn_iters = 100
-learn_lr = 1e-3
+learn_iters = 300
+learn_lr = 5e-4
 input_size = 1
 hidden_size = 36
 output_size = 1
@@ -42,6 +42,7 @@ train_losses = []
 val_losses = []
 for i in range(learn_iters):
     train_loss = 0
+    model.train()
     # batched training
     for j in range(0, train_size, batch_size):
         y_train = y_trains[j:j+batch_size]
@@ -60,14 +61,16 @@ for i in range(learn_iters):
     train_losses.append(train_loss)
 
     # test on validation data
-    h_val = model.init_hidden(val_size).to(device)
-    y_pred_val = []
-    for k in range(seq_len):
-        h_val, output = model(y_vals[:, k:k+1], h_val)
-        y_pred_val.append(output)
-    y_pred_val = torch.cat(y_pred_val, dim=1)
-    loss_val = criterion(y_pred_val, y.repeat(val_size, 1))
-    val_losses.append(loss_val.item())
+    model.eval()
+    with torch.no_grad():
+        h_val = model.init_hidden(val_size).to(device)
+        y_pred_val = []
+        for k in range(seq_len):
+            h_val, output = model(y_vals[:, k:k+1], h_val)
+            y_pred_val.append(output)
+        y_pred_val = torch.cat(y_pred_val, dim=1)
+        loss_val = criterion(y_pred_val, y.repeat(val_size, 1))
+        val_losses.append(loss_val.item())
 
     if (i + 1) % print_interval == 0:
         print(
@@ -77,14 +80,16 @@ for i in range(learn_iters):
             f"Val loss: {loss_val.item():.4f}"
         )
 
-# there should be a unit for testing data here
-h_test = model.init_hidden(test_size).to(device)
-y_pred_test = []
-for k in range(seq_len):
-    h_test, output = model(y_tests[:, k:k+1], h_test)
-    y_pred_test.append(output)
-y_pred_test = torch.cat(y_pred_test, dim=1)
-loss_test = criterion(y_pred_test, y.repeat(test_size, 1))
+# test set
+model.eval()
+with torch.no_grad():
+    h_test = model.init_hidden(test_size).to(device)
+    y_pred_test = []
+    for k in range(seq_len):
+        h_test, output = model(y_tests[:, k:k+1], h_test)
+        y_pred_test.append(output)
+    y_pred_test = torch.cat(y_pred_test, dim=1)
+    loss_test = criterion(y_pred_test, y.repeat(test_size, 1))
 
         
 plt.figure()
