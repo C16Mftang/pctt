@@ -31,7 +31,7 @@ seed = 48
 # training and model configs
 learn_iters = 100
 learn_lr = 1e-3
-update_step = 1
+update_step = 2
 input_size = 1
 hidden_size = 36
 output_size = 1
