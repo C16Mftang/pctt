@@ -8,10 +8,10 @@ import logging
 import warnings
 import torch
 
-class RNNTrainer:
+class BaseTrainer:
     """Trainer
     
-    Class that eases the training of a PyTorch model.
+    Base class for trainers for RNN and PCN
     
     Parameters
     ----------
@@ -166,6 +166,72 @@ class RNNTrainer:
                 logging.info(msg)
     
     def _train_on_batch(self, features, labels, bsz):        
+
+        raise NotImplementedError()
+    
+    def _validate_on_batch(self, features, labels, bsz):
+        
+        raise NotImplementedError()
+    
+    def _to_device(self, features, labels, device):
+        return features.to(device), labels.to(device)
+    
+    def _compute_loss(self, real, target):
+        try:
+            loss = self.criterion(real, target)
+        except:
+            loss = self.criterion(real, target.long())
+            msg = f"Target tensor has been casted from"
+            msg = f"{msg} {type(target)} to 'long' dtype to avoid errors."
+            warnings.warn(msg)
+
+        # apply regularization if any
+        # loss += penalty.item()
+            
+        return loss
+
+    def _get_device(self, device):
+        if device is None:
+            dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            msg = f"Device was automatically selected: {dev}"
+            warnings.warn(msg)
+        else:
+            dev = device
+
+        return dev
+
+class RNNTrainer(BaseTrainer):
+    """RNN Trainer
+    
+    Parameters
+    ----------
+    Inherited base trainer parameters
+        
+    Attributes
+    ----------
+    train_loss_ : list
+    val_loss_ : list
+    
+    """
+    def __init__(
+        self, 
+        seq_len,
+        model, 
+        criterion, 
+        optimizer, 
+        step_update,
+        logger_kwargs, 
+        device=None
+    ):
+        super().__init__(seq_len,
+                         model, 
+                         criterion, 
+                         optimizer, 
+                         step_update,
+                         logger_kwargs, 
+                         device=device)
+    
+    def _train_on_batch(self, features, labels, bsz):        
         # move to device
         features, labels = self._to_device(features, labels, self.device)
 
@@ -187,7 +253,7 @@ class RNNTrainer:
                 self.optimizer.zero_grad()
                 
                 # backprop
-                loss.backward(retain_graph=True)
+                loss.backward()
                 
                 # parameters update
                 self.optimizer.step()
@@ -238,29 +304,160 @@ class RNNTrainer:
                 
         return batch_loss
     
-    def _to_device(self, features, labels, device):
-        return features.to(device), labels.to(device)
+class PCTrainer(BaseTrainer):
+    """tPCN Trainer
     
-    def _compute_loss(self, real, target):
-        try:
-            loss = self.criterion(real, target)
-        except:
-            loss = self.criterion(real, target.long())
-            msg = f"Target tensor has been casted from"
-            msg = f"{msg} {type(target)} to 'long' dtype to avoid errors."
-            warnings.warn(msg)
+    Parameters
+    ----------
+    Inherited base trainer parameters
 
-        # apply regularization if any
-        # loss += penalty.item()
+    inference_kwargs : dict
+        Args for running inference in PCns
+        
+    Attributes
+    ----------
+    train_loss_ : list
+    val_loss_ : list
+    
+    """
+    def __init__(
+        self, 
+        seq_len,
+        model, 
+        criterion, 
+        optimizer, 
+        step_update,
+        logger_kwargs, 
+        inference_kwargs,
+        device=None
+    ):
+        super().__init__(seq_len,
+                         model, 
+                         criterion, 
+                         optimizer, 
+                         step_update,
+                         logger_kwargs, 
+                         device=device)
+        self.inference_kwargs = inference_kwargs
+
+    def predict(self, features, labels, bsz):
+        # get the inference hyperparameters
+        inf_iters = self.inference_kwargs['inf_iters']
+        inf_lr = self.inference_kwargs['inf_lr']
+        
+        with torch.no_grad():
+            # move to device
+            features, labels = self._to_device(features, labels, self.device)
+
+            # initialize hidden activities of rnn
+            h = self.model.init_hidden(bsz).to(self.device)
+                
+            # iterate through the time steps of batched seqs
+            pred = []
+            for seq_idx in range(self.seq_len):
+
+                # pc inference step for the hidden state
+                self.model.inference(inf_iters, 
+                                     inf_lr, 
+                                     labels[:, seq_idx:seq_idx+1], 
+                                     features[:, seq_idx:seq_idx+1], 
+                                     h)
+                
+                # assign the current hidden state to h
+                h = self.model.z.clone()
+                
+                pred.append(self.model.pred_x)
+                
+        return torch.cat(pred, dim=1)
+
+    def _train_on_batch(self, features, labels, bsz):        
+        # get the inference hyperparameters
+        inf_iters = self.inference_kwargs['inf_iters']
+        inf_lr = self.inference_kwargs['inf_lr']
+
+        # move to device
+        features, labels = self._to_device(features, labels, self.device)
+
+        # initialize hidden activities of rnn
+        h = self.model.init_hidden(bsz).to(self.device)
+
+        # iterate through the time steps of batched seqs
+        batch_loss = 0
+        # observation loss, to compare with RNN
+        obs_loss = 0
+        for seq_idx in range(self.seq_len):
+            # remove gradient from previous passes
+            self.optimizer.zero_grad()
+
+            # pc inference step for the hidden state
+            self.model.inference(inf_iters, 
+                                 inf_lr, 
+                                 labels[:, seq_idx:seq_idx+1], 
+                                 features[:, seq_idx:seq_idx+1], 
+                                 h)
+            # loss for PCN is not the observations loss
+            # it is the total energy of the model
+            loss = self.model.get_loss(labels[:, seq_idx:seq_idx+1], 
+                                       features[:, seq_idx:seq_idx+1], 
+                                       h)
             
-        return loss
+            # backprop
+            loss.backward()
+            
+            # parameters update
+            self.optimizer.step()
 
-    def _get_device(self, device):
-        if device is None:
-            dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            msg = f"Device was automatically selected: {dev}"
-            warnings.warn(msg)
-        else:
-            dev = device
+            # assign h to the current hidden state
+            h = self.model.z.clone()
 
-        return dev
+            batch_loss += loss
+            obs_loss += self._compute_loss(self.model.pred_x,
+                                           labels[:, seq_idx:seq_idx+1])
+
+        # average across seq
+        batch_loss /= self.seq_len
+        obs_loss /= self.seq_len
+
+        return obs_loss
+    
+    def _validate_on_batch(self, features, labels, bsz):
+        # get the inference hyperparameters
+        inf_iters = self.inference_kwargs['inf_iters']
+        inf_lr = self.inference_kwargs['inf_lr']
+        
+        with torch.no_grad():
+            # move to device
+            features, labels = self._to_device(features, labels, self.device)
+
+            # initialize hidden activities of rnn
+            h = self.model.init_hidden(bsz).to(self.device)
+                
+            # iterate through the time steps of batched seqs
+            batch_loss = 0
+            obs_loss = 0
+            for seq_idx in range(self.seq_len):
+
+                # pc inference step for the hidden state
+                self.model.inference(inf_iters, 
+                                     inf_lr, 
+                                     labels[:, seq_idx:seq_idx+1], 
+                                     features[:, seq_idx:seq_idx+1], 
+                                     h)
+                
+                # loss
+                loss = self.model.get_loss(labels[:, seq_idx:seq_idx+1], 
+                                           features[:, seq_idx:seq_idx+1], 
+                                           h)
+                
+                # assign the current hidden state to h
+                h = self.model.z.clone()
+                
+                batch_loss += loss
+                obs_loss += self._compute_loss(self.model.pred_x,
+                                               labels[:, seq_idx:seq_idx+1])
+
+            # average across seq
+            batch_loss /= self.seq_len
+            obs_loss /= self.seq_len
+                
+        return obs_loss

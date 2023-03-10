@@ -78,8 +78,8 @@ class TemporalPC(nn.Module):
         else:
             raise ValueError("no such nonlinearity!")
     
-    def forward(self, u, prev_z):
-        pred_z = self.Win(self.nonlin(u)) + self.Wr(self.nonlin(prev_z))
+    def forward(self, u, z):
+        pred_z = self.Win(self.nonlin(u)) + self.Wr(self.nonlin(z))
         return pred_z
 
     def init_hidden(self, bsz):
@@ -114,19 +114,18 @@ class TemporalPC(nn.Module):
                     delta_x = err_x
                     x -= inf_lr * delta_x
 
-    def update_grads(self, x, u, prev_z):
-        """x: input at a particular timestep in stimulus
+    def get_loss(self, x, u, prev_z):
+        """x: target
+        u: input
         
         Could add some sparse penalty to weights
         """
         err_z, err_x = self.update_errs(x, u, prev_z, self.z)
         self.hidden_loss = torch.sum(err_z**2)
         self.obs_loss = torch.sum(err_x**2)
-        # self.Win.weight.grad = -torch.matmul(err_z.t(), self.nonlin(u))
-        # self.Wr.weight.grad = -torch.matmul(err_z.t(), self.nonlin(prev_z))
-        # self.Wout.weight.grad = -torch.matmul(err_x.t(), self.nonlin(self.z))
         loss = self.hidden_loss + self.obs_loss
-        loss.backward()
+
+        return loss
 
 
 class myRNN(nn.Module):

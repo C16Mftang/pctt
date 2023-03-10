@@ -2,10 +2,34 @@ import torch
 from torchvision import datasets, transforms
 from torchvision.transforms import transforms
 from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.utils.data import Dataset
 import torch.nn.functional as F
 import random
 import numpy as np
 import math
+
+class DataWrapper(Dataset):
+    """
+    Class to wrap a dataset. Assumes X and y are already
+    torch tensors and have the right data type and shape.
+    
+    Parameters
+    ----------
+    X : torch.Tensor
+        Features tensor.
+    y : torch.Tensor
+        Labels tensor.
+    """
+    def __init__(self, X, y):
+        self.features = X
+        self.labels = y
+        
+    def __len__(self):
+        return len(self.features)
+    
+    def __getitem__(self, idx):
+        return self.features[idx], self.labels[idx]
+    
 
 def get_mnist(datapath, sample_size, sample_size_test, batch_size, seed, device, binary=False, classes=None):
     # classes: a list of specific class to sample from
@@ -94,25 +118,38 @@ def get_rotating_mnist(datapath, seq_len, seed, device, angle=np.pi/5, digit=0, 
     return torch.cat(train_sequence, dim=0), torch.cat(test_sequence, dim=0)
 
 
-def get_sine(seq_len, amp, train_size, val_size, test_size, noise, device):
+def get_sine(seq_len, amp, train_size, val_size, test_size, noise, seed, device):
     # generate data
     steps = torch.linspace(0., 4 * torch.pi, seq_len).reshape((1, seq_len))
     y = (amp * torch.sin(steps)).to(device)
 
     # generate training and validation data
-    y_trains = torch.zeros((train_size, seq_len)).to(device)
+    X_trains = torch.zeros((train_size, seq_len)).to(device)
     for s in range(train_size):
-        torch.manual_seed(s)
-        y_trains[s] = y + torch.randn_like(y) * noise
+        torch.manual_seed(seed*s)
+        X_trains[s] = y + torch.randn_like(y) * noise
+    y_trains = y.repeat(train_size, 1)
 
-    y_vals = torch.zeros((val_size, seq_len)).to(device)
+    X_vals = torch.zeros((val_size, seq_len)).to(device)
     for s in range(val_size):
-        torch.manual_seed(s + train_size)
-        y_vals[s] = y + torch.randn_like(y) * noise * 2
+        torch.manual_seed(seed*(s + train_size))
+        X_vals[s] = y + torch.randn_like(y) * noise * 2
+    y_vals = y.repeat(val_size, 1)
 
-    y_tests = torch.zeros((test_size, seq_len)).to(device)
+    X_tests = torch.zeros((test_size, seq_len)).to(device)
     for s in range(test_size):
-        torch.manual_seed(s + train_size + val_size)
-        y_tests[s] = y + torch.randn_like(y) * noise * 2
+        torch.manual_seed(seed*(s + train_size + val_size))
+        X_tests[s] = y + torch.randn_like(y) * noise * 2
+    y_tests = y.repeat(test_size, 1)
 
-    return steps, y, y_trains, y_vals, y_tests
+    data_dict = {
+        "steps" : steps,
+        "X_train" : X_trains,
+        "y_train" : y_trains,
+        "X_val" : X_vals,
+        "y_val" : y_vals,
+        "X_test" : X_tests,
+        "y_test" : y_tests,
+    }
+
+    return data_dict
